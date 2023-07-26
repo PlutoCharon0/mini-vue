@@ -73,15 +73,15 @@
 
 在创建组件实例时，挂载emit方法到组件实例对象上。emit函数可以从setup()的第二个参数中提取。使用时，传入相应的自定义事件名称，和需要传递的参数。在emit函数的执行中，通过props查找自定义事件的绑定。如果存在绑定则执行对应事件，反之，则不执行。
 
-```js
- function createComponentInstance() {
+```ts
+ function createComponentInstance() { // component.ts
     ......
   // 利用bind() 让用户使用emit时第一个参数为事件名称
   component.emit = emit.bind(null, component) as any
   return component
 }
 
- function emit(instance, event, ...args) {
+ function emit(instance, event, ...args) { // componentEmits.ts
     
     // 从组件实例上获取props
     const { props } = instance
@@ -105,6 +105,63 @@
 根据当前组件实例对象解构出provides节点，若当前组件实例对象存在上级组件，则提取出**上级组件实例对象的provides节点**与**当前组件实例对象的provides节点**作***比对***。若比对成功，则**将当前组件实例对象的provides节点的隐式原型指向其上级组件实例对象的provides，便于链式查找**。最后设置provides节点内容。
 
 * inject的实现
+## slot的实现
+
+**当组件渲染到子组件时，会把挂载到子组件的插槽内容挂载到子组件实例对象的slots节点上，在渲染子组件DOM内容时，通过this.$slots以及renderSlots函数获取插槽内容并渲染相应内容。**
+
+在创建子组件虚拟节点时，判断其children节点是否为object类型，若为object类型，则说明该children节点是插槽slot的节点内容。标识虚拟节点类型为***拥有插槽***类型。同时在后续创建组件实例对象时，给组件实例对象挂载slots节点。（虚拟节点和组件实例对象存在双向联系）
+
+在配置组件过程中，初始化slots。初始化过程中，判断当前组件是否拥有插槽（根据标识来判断），若该组件拥有插槽，则遍历虚拟节点上的children节点，取出对应插槽，配置到组件实例对象上的slots节点上（注意：值的形式为 函数形式）。
+
+```js
+import { ShapeFlags } from "@guide-mini-vue/shared"
+// componentSlots.ts
+export function initSlots(instance, children) {
+    const { vnode, slots } = instance
+    // 判断虚拟节点是否为插槽内容
+    if (vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
+        // 配置slots节点内容
+        normalizeObjectSlots(children, slots)
+    }
+
+}
+
+function normalizeObjectSlots(children, slots) {
+    // children的数据结构为对象 通过对children进行遍历 获取对应的插槽
+    for (const key in children) {
+		// key指向插槽名称
+        const value = children[key]
+        // 函数形式 --> 作用域插槽
+        slots[key] = (props) => normalizeSlotValue(value(props))
+
+    }
+}
+// 判断slots中的虚拟节点是否用数组形式存储 如果不是则需要转换成数组形式以便渲染
+function normalizeSlotValue(value) {
+    return Array.isArray(value) ? value : [value]
+}
+
+```
+
+在renderSlots函数中，接收一个slots节点，和插槽名称（具名插槽）和 props（作用域插槽）
+
+```ts
+import { Fragment, createVNode } from "../vNode";
+// helpers/renderSlots.ts
+export function renderSlots(slots, name = 'default', props) {
+
+    const slot = slots[name]
+
+    if (slot) {
+        // 存储slots节点内容的数据结构是普通数组 需要手动的将它们转换为虚拟节点
+        if (typeof slot === 'function') {
+            return createVNode( Fragment, { name }, slot(props))
+        }
+    }
+}
+```
+
+
 
 根据当前组件实例对象解构出provides节点，**判断访问的参数key是否存在其provides节点中，如果存在则直接返回对应值**，反之，则判断用户是传入相应默认值参数，如果存在，则直接返回默认值。（若默认参数是函数，则返回函数执行）
 

@@ -4,7 +4,7 @@ export function initSlots(instance, children) {
     const { vnode, slots } = instance
     // 判断虚拟节点是否为插槽内容
     if (vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
-        // 初始化 slots 并挂载到组件实例对象上
+        // 配置slots节点内容
         normalizeObjectSlots(children, slots)
     }
 

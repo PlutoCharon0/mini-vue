@@ -163,6 +163,68 @@ export function renderSlots(slots, name = 'default', props) {
 }
 ```
 
+## 组件渲染/更新
 
+TODO
 
+## 虚拟DOM渲染/更新
+
+**render() -> patch() -> 判断虚拟节点类型为元素类型 -> 进入初始化**
+
+* **元素初始化**
+
+1. 创建根元素
+
+提取虚拟节点（vnode）的type节点，调用**document.createElement(“vnode.type”)**，创建根元素，并挂载el节点到虚拟节点上，以便后续渲染。
+
+2. 设置props
+
+提取虚拟节点（vnode）的props节点（objec类型），遍历props节点，调用patchProp()，利用***el*.setAttribute(key,value)**设置属性,同时判断props的key是否带有on字段，若存在则处理该字段提取出事件名称，利用***el*.addEventListener(eventName,value)**绑定事件。
+
+3. 渲染子节点内容
+
+提取虚拟节点（vnode）的children节点，判断虚拟节点的类型（在创建虚拟节点时，确认类型，此处类型判断 该虚拟节点的children节点是纯文本还是数组类型）。
+
+若为文本类型，则调用**document.createTextNode(children)**,生成文本children内容并调用**el.append()**插入到根元素（el）中。
+
+若为数组类型，则遍历数组（存储着虚拟节点），调用**patch()**渲染。
+
+4. 将根元素插入到根容器中
+
+调用**container.insertBefore(el, anchor || null)**将完整元素内容插入到根容器中。（anchor参数作为锚点，其设置在后续元素更新时有用处）
+
+* **元素更新**
+
+数据发生改变 -> 视图更新（DOM更新）——利用effect包裹render函数的执行,创建依赖。当数据更新时，则触发依赖执行。
+
+1. 依赖执行时，触发patch的执行,此时会同时传入新、旧虚拟节点，用于比对更新。在进行props和children节点更新前，需要挂载旧虚拟节点的el属性到新虚拟节点上（新虚拟节点不经历根元素创建流程，需要继承获取）
+2. props的更新
+
+分别从新、旧节点中获取相应的新、旧props。调用**patchProps(el,oldProp,newProp)**,更新props。
+
+**更新过程**：**遍历新props**，查找其中的key是否存在于旧props中，如果key存在于旧props中，则开始比对它们的值是否相同，不同则调用patchProp()更新值。若key不存在，则说明出现了新属性，则调用patchProp()补充新的key-value。**遍历旧props**，查看其中的key是否存在于新props中，如果不存在，则说明相应的key-value需要删除。调用patchProp()进行删除。
+
+更新情景：**props的key不发生改变，值发生改变**、**在旧props的基础上，出现新的key-value**、**新props中丢失了一些key-value**
+
+3. children的更新
+
+**更新过程**：分别从新旧虚拟节点中**提取**出其**类型标识**以及其**相应的children节点**，根据相应情景进行相应处理。
+
+更新情景：
+
+* arrayChildren —— textChildren
+
+调用**unmountChildren()**清空旧children内容：遍历children节点（数组），获取对应childrenItem的el节点，调用**hostRemove()**,处理清空逻辑（核心处理逻辑： **parentNode.removeChild(children)**）。旧children清空完毕，调用**hostSetTextElement(el, text)**创建文本节点，并插入到根容器中。（核心处理逻辑：***el*.textContent = *text***）
+
+* textChildren —— textChildren
+
+判断内容是否发生改变，若发生改变调用**hostSetTextElement(el, text)**更新内容，反之不做任何处理。
+
+* textChildren —— arrayChildren
+
+调用**hostSetTextElement(el, text)**清空旧children内容，调用**mountChildren()**渲染新children内容，即遍历出childrenItem调用patch()渲染。
+
+* arrayChildren —— arrayChildren
+
+TODO
 

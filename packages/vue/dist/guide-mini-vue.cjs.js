@@ -84,70 +84,122 @@ const toHandelrKey = (str) => {
     return str ? `on${capitalize(str)}` : "";
 };
 
-let activeEffect;
+let activeEffect; // 用于存储当前激活的副作用函数
 let shouldTrack;
+const effectStack = []; // 副作用函数栈
+// 副作用函数类
 class ReactiveEffect {
     constructor(fn, scheduler) {
         this.active = true;
-        this.deps = [];
+        this.deps = []; // 存储与之关联的响应式数据联系 形成双向联系
+        // 存储副作用函数
         this._fn = fn;
+        // 存储控制器
         this.scheduler = scheduler;
     }
+    // 副作用函数的执行
     run() {
+        // 如果用户访问的不是依赖的变量 就只执行fn 不收集依赖
         if (!this.active) {
             return this._fn();
         }
+        // 标识要收集依赖
         shouldTrack = true;
+        // 收集依赖前先断开原有依赖联系 用于解决依赖遗留问题（三元表达式 分支切换）
+        cleanUpEffect(this);
+        // 存储当前激活的副作用函数
         activeEffect = this;
-        const result = this._fn();
-        shouldTrack = false;
-        return result;
+        effectStack.push(activeEffect);
+        const result = this._fn(); // 执行fn 并存储执行结果 用于返回
+        effectStack.pop();
+        activeEffect = effectStack[effectStack.length - 1];
+        // 依赖收集完毕 重置变量
+        // 应对副作用函数嵌套的情况
+        typeof activeEffect === 'undefined' ? shouldTrack = false : shouldTrack = true;
+        return result; // 返回执行结果
     }
     stop() {
-        if (this.active) {
+        if (this.active) { // 只有存在联系时才进行断开 避免重复调用
             if (this.onStop) {
                 this.onStop();
             }
             cleanUpEffect(this);
+            // 修改状态标识 断开了联系
             this.active = false;
         }
     }
 }
+/**
+ * 断开副作用函数与响应式数据的联系
+ * @param { ReactiveEffect } effect 副作用函数 实例对象
+*/
 function cleanUpEffect(effect) {
+    // 找到所有依赖这个effect的响应式对象
     effect.deps.forEach(dep => {
         dep.delete(effect);
     });
     effect.deps.length = 0;
 }
+// 副作用函数注册(收集)
 function effect(fn, options = {}) {
+    // 创建副作用函数（实例对象）
     const effectFn = new ReactiveEffect(fn, options.scheduler);
-    extend(effectFn, options);
-    effectFn.run();
-    const runner = effectFn.run.bind(effectFn);
-    runner.effect = effectFn;
-    return runner;
+    extend(effectFn, options); // 挂载配置 
+    effectFn.run(); // 副作用函数的自执行
+    const runner = effectFn.run.bind(effectFn); // 将副作用函数的执行用变量存储用于返回
+    runner.effect = effectFn; // 挂载所属副作用函数属性
+    return runner; // 返回副作用函数的执行函数 让用户可以控制副作用函数的执行
 }
-let bucket = new WeakMap();
+const bucket = new WeakMap(); // 存储所有响应式对象的容器
+/**
+ * 收集依赖
+ * @param target 对象
+ * @param key 对象属性
+*/
+function track(target, key) {
+    // 如果访问的对象属性并没有对应依赖引用 就不执行收集操作 直接返回
+    if (!isTracking())
+        return;
+    let depsMap = bucket.get(target); // 在容器中查找其对应的依赖映射
+    if (!depsMap)
+        bucket.set(target, (depsMap = new Map())); // 如果未查找到就进行初始化
+    let deps = depsMap.get(key); // 在依赖映射中查找其对应属性的引用集合
+    if (!deps)
+        depsMap.set(key, (deps = new Set())); // 如果未查找到就进行初始化
+    trackEffect(deps);
+}
+/**
+ * 判断是否收集依赖
+*/
 function isTracking() {
     return shouldTrack && activeEffect != undefined;
 }
 function trackEffect(deps) {
+    // 如果当前依赖已收集 直接返回
     if (deps.has(activeEffect))
         return;
+    // 收集依赖
     deps.add(activeEffect);
+    // 建立双向联系
     activeEffect.deps.push(deps);
 }
-function track(target, key) {
-    if (!isTracking())
-        return;
-    let depsMap = bucket.get(target);
+/**
+ * 触发依赖执行
+ * @param target 对象
+ * @param key 对象属性
+*/
+function trigger(target, key) {
+    // 在容器中查找其对应的依赖映射
+    const depsMap = bucket.get(target);
     if (!depsMap)
-        bucket.set(target, (depsMap = new Map()));
-    let deps = depsMap.get(key);
-    if (!deps)
-        depsMap.set(key, (deps = new Set()));
-    trackEffect(deps);
+        return;
+    const deps = depsMap.get(key);
+    triggerEffect(createDepsToRun(deps));
 }
+/**
+ * 执行依赖
+ * @param { Set } deps 依赖集合
+*/
 function triggerEffect(deps) {
     for (const effect of deps) {
         if (effect.scheduler) {
@@ -158,10 +210,17 @@ function triggerEffect(deps) {
         }
     }
 }
-function trigger(target, key) {
-    const depsMap = bucket.get(target);
-    const deps = depsMap.get(key);
-    triggerEffect(deps);
+/**
+ * 创建用于执行依赖的集合 用于处理栈溢出问题（get，set的冲突触发）
+ */
+function createDepsToRun(deps) {
+    const depsToRun = new Set();
+    deps.forEach(dep => {
+        if (dep !== activeEffect) {
+            depsToRun.add(dep);
+        }
+    });
+    return depsToRun;
 }
 
 /**
@@ -172,6 +231,7 @@ function trigger(target, key) {
 */
 function createGetter(isReadonly = false, shallow = false) {
     return function get(target, key) {
+        // 用于判断是否为readonly对象/reactive对象
         if (key === "__v_isReactive" /* ReactiveFlags.IS_REACTIVE */) {
             return !isReadonly;
         }
@@ -180,11 +240,12 @@ function createGetter(isReadonly = false, shallow = false) {
         }
         const result = Reflect.get(target, key);
         if (!isReadonly) {
+            // 如果不是readonly对象则收集依赖
             track(target, key);
         }
         if (shallow)
             return result;
-        if (isObject(result)) {
+        if (isObject(result)) { // 深层处理 创建深层响应式
             return isReadonly ? readonly(result) : reactive(result);
         }
         return result;
@@ -230,6 +291,13 @@ const shallowReadonlyHandlers = extend({}, readonlyHandlers, {
 });
 
 /**
+ * 创建 reactive实例对象
+ * @param { object } raw  原生对象
+*/
+function reactive(raw) {
+    return createActiveObject(raw, mutableHandlers);
+}
+/**
  * 创建代理对象
  * @param { object } raw  原生对象
  * @param { object } baseHandlers  代理对象的 get set配置
@@ -239,13 +307,6 @@ function createActiveObject(raw, baseHandlers) {
         return console.warn(`target ${raw} 不是一个对象`);
     }
     return new Proxy(raw, baseHandlers);
-}
-/**
- * 创建 reactive实例对象
- * @param { object } raw  原生对象
-*/
-function reactive(raw) {
-    return createActiveObject(raw, mutableHandlers);
 }
 /**
  * 创建 shallowReactive实例
@@ -288,15 +349,17 @@ function isReadonly(value) {
 class RefImpl {
     constructor(value) {
         this.__V_isRef = true;
-        this._rawValue = value;
-        this._value = convert(value);
-        this.dep = new Set();
+        this._rawValue = value; // 存储原生value值
+        this._value = convert(value); // 如果value是一个对象则生成reactive实例对象
+        this.dep = new Set(); // 创建依赖集合
     }
     get value() {
+        // 收集依赖
         trackRefValue(this);
         return this._value;
     }
     set value(newValue) {
+        // 判断值是否有改变 当值改变时才修改值、同时触发依赖执行
         if (hasChanged(newValue, this._rawValue)) {
             this._rawValue = newValue;
             this._value = convert(newValue);
@@ -307,20 +370,40 @@ class RefImpl {
 function convert(value) {
     return isObject(value) ? reactive(value) : value;
 }
+/**
+ * 收集依赖
+ * @param { RefImpl }  ref refImpl实例对象
+ */
 function trackRefValue(ref) {
     if (isTracking()) {
         trackEffect(ref.dep);
     }
 }
+/**
+ * 创建ref实例对象
+ * @param { * } value
+ */
 function ref(value) {
     return new RefImpl(value);
 }
+/**
+ * 判断参数是否为ref实例对象
+ * @param { * } ref
+ */
 function isRef(ref) {
     return !!ref.__V_isRef;
 }
+/**
+ * 解构.value的访问
+ * @param { * } ref
+ */
 function unRef(ref) {
     return isRef(ref) ? ref.value : ref;
 }
+/**
+ * 返回代理对象 当返回的对象包含ref实例对象时，对其的访问进行.value解构
+ * @param { * } raw
+ */
 function proxyRefs(raw) {
     return new Proxy(raw, {
         get(target, key) {
@@ -347,6 +430,7 @@ class computedRefImpl {
         });
     }
     get value() {
+        // 只有当dirty变量为true时，即数据发生改变时才更新值
         if (this._dirty) {
             this._dirty = false;
             this._value = this._effect.run();
@@ -518,9 +602,9 @@ function provide(key, value) {
 function inject(key, defalutValue) {
     const currentInstance = getCurrentInstance();
     if (currentInstance) {
-        const parentProvides = currentInstance.parent.provides;
-        if (key in parentProvides) {
-            return parentProvides[key];
+        let { provides } = currentInstance;
+        if (key in provides) {
+            return provides[key];
         }
         else if (defalutValue) {
             if (typeof defalutValue === 'function') {
@@ -890,7 +974,7 @@ function createRender(options) {
     }
     function unmountChildren(children) {
         for (let i = 0; i < children.length; i++) {
-            const el = children[i];
+            const el = children[i].el;
             hostRemove(el);
         }
     }
@@ -973,7 +1057,8 @@ function createRender(options) {
             else {
                 // 获取代理对象改变render函数this指向
                 const { proxy, next, vnode } = instance;
-                // 如果 next存在 说明需要更新组件的数据(props, slots等)
+                // 如果有 next 的话， 说明需要更新组件的数据（props，slots 等）
+                // 先更新组件的数据，然后更新完成后，在继续对比当前组件的子元素
                 if (next) {
                     next.el = vnode.el; // 组件最新的虚拟节点并没有初始化 需要手动给新的节点赋值el属性
                     updateComponentPreRender(instance, next);

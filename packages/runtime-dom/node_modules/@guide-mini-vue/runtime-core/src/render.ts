@@ -283,7 +283,7 @@ export function createRender(options) {
 
     function unmountChildren(children) {
         for (let i = 0; i < children.length; i++) {
-            const el = children[i]
+            const el = children[i].el
             hostRemove(el)
         }
     }
@@ -372,7 +372,8 @@ export function createRender(options) {
             } else {
                 // 获取代理对象改变render函数this指向
                 const { proxy, next, vnode } = instance
-                // 如果 next存在 说明需要更新组件的数据(props, slots等)
+                // 如果有 next 的话， 说明需要更新组件的数据（props，slots 等）
+                // 先更新组件的数据，然后更新完成后，在继续对比当前组件的子元素
                 if (next) {
                     next.el = vnode.el // 组件最新的虚拟节点并没有初始化 需要手动给新的节点赋值el属性
                     updateComponentPreRender(instance, next)

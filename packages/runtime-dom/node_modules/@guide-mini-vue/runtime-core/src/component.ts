@@ -8,7 +8,7 @@ import { initSlots } from "./componentSlots"
 export function createComponentInstance(vnode, parent) {
     const component = {
         vnode, // 虚拟节点
-        type: vnode.type, // 虚拟节点类型/虚拟节点根元素
+        type: vnode.type, // 虚拟节点类型:Element虚拟节点根元素/Component虚拟节点配置对象
         setupState: {}, // setup函数默认返回值 / 可以是对象也可以是函数
         props: {}, // 挂载绑定到组件上的属性
         emit: () => { }, // 挂载绑定到组件上的自定义事件
@@ -68,6 +68,8 @@ function handleSetupResult(instance, setupResult) {
     if (typeof setupResult === 'object') {
         // 如果返回值是一个对象 将该对象挂载在组件实例对象身上
         instance.setupState = proxyRefs(setupResult) // 使用proxyRefs将其ref进行.value的解构
+    } else if (typeof setupResult === 'function') {
+        instance.render = setupResult
     }
     // 处理完setup函数返回值后 挂载相应的render函数 
     finishComponentSetup(instance)

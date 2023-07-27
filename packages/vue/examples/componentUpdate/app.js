@@ -3,7 +3,7 @@ import {
     ref,
     getCurrentInstance,
     nextTick,
-} from "../lib/guide-mini-vue.esm.js";
+} from "../../dist/guide-mini-vue.esm.js";
 import Child from "./child.js";
 export default {
     name: "App",

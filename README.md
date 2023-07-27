@@ -165,7 +165,116 @@ export function renderSlots(slots, name = 'default', props) {
 
 ## 组件渲染/更新
 
-TODO
+
+
+* **组件初始化**
+
+**render() -> patch() -> 判断虚拟节点类型为组件类型 -> 进入初始化**
+
+* **组件初始化**
+
+1. 创建组件实例对象，挂载相关节点到组件实例对象上，以便后续操作
+
+```ts
+function createComponentInstance(vnode, parent) { // component.ts
+    const component = {
+        vnode, // 虚拟节点
+        type: vnode.type, // 虚拟节点类型:Element虚拟节点根元素/Component虚拟节点配置对象
+        setupState: {}, // setup函数默认返回值 / 可以是对象也可以是函数
+        props: {}, // 挂载绑定到组件上的属性
+        emit: () => { }, // 挂载绑定到组件上的自定义事件
+        slots: {}, // 挂载组件中的插槽
+        // 当中间层组件没有指定provides时将其链接向其父组件的provides值
+        provides: parent ? parent.provides : {}, // 挂载组件向外暴露的属性或方法
+        parent, // 挂载父组件实例对象
+        isMounted: false, // 记录当前元素是否为初始化状态
+        subTree: null, // 记录当前组件的虚拟DOM树
+        next: null, // 记录组件最新虚拟节点,
+        update: null, // 记录用于更新的回调函数
+    }
+    // 利用bind() 让用户使用emit时第一个参数为事件名称
+    component.emit = emit.bind(null, component) as any
+
+
+    return component
+}
+```
+
+2. 配置组件
+
+   1. 组件props初始化
+
+   将组件虚拟节点的props节点挂载到组件实例对象上
+
+   2. 组件插槽初始化
+
+   判断组件虚拟节点类型为**拥有插槽**类型，则从其虚拟节点提取出children节点，配置slots节点内容。以便后续插槽内容的渲染。
+
+   3. 调用setup函数，处理setup返回值
+
+   * **将setup函数返回的对象利用proxy代理到render的this指向上,以便在render函数中使用对应数据字段**，此处先将该代理对象绑定到组件实例对象的proxy节点上。等到render的执行，再绑定指向。
+
+   ```ts
+   // component.ts  setupStatefulComponent()
+   instance.proxy = new Proxy({ _: instance }, publicInstanceProxyHandlers)
+   ----------------------------------------------------------------------------
+   // componentPublicInstance.ts
+   import { hasOwn } from "@guide-mini-vue/shared"  
+   
+   const publicPropertiesMap = {
+       '$el': (instance) => instance.vnode.el,
+       "$slots": (instance) => instance.slots, 
+       '$props': (instance) => instance.props    
+   }
+   
+   
+   export const publicInstanceProxyHandlers =  {
+       get({ _: instance }, key) {
+           const { setupState, props } = instance
+           // 判断所访问的属性所属 setupState/props，返回对应值
+           if (hasOwn(setupState, key)) {
+               return setupState[key]
+           } else if (hasOwn(props, key)) {
+               return props[key]
+           }
+           // 配置相应语法糖访问 $el, $slots, $props
+          const publicGetter = publicPropertiesMap[key]
+          if (publicGetter) {
+           return publicGetter(instance)
+          }
+       }
+   }
+   ```
+
+   * 设置当前currentInstance（当前操作的组件实例对象），以便用户在setup函数中获取
+   * 从组件实例对象type节点解构出setup函数，配置相关参数并执行。第一个参数为绑定到组件的属性（绑定到组件上的属性不能由绑定组件修改，所以需要使用shallowReadonly包裹），第二个参数为setup函数的上下文对象（提供 attrs，slots,  emit, expose的访问，此处只实现了emit的访问）
+
+   ```ts
+   setup(shallowReadonly(instance.props), { emit: instance.emit })
+   ```
+
+   * setup函数执行完毕，则处理其返回值。如果返回值是对象类型，则**将返回值绑定到组件实例对象的setupState节点上**，在挂载的同时**使用proxyRefs**对返回值再进行一次代理，以便用户访问ref实例对象时，**避免.value的访问，便捷访问**。若是函数类型，则将其挂载到render节点，作为render函数
+   * 返回值处理完毕后，从组件实例对象的type节点解构出render函数，挂载到组件实例对象上，用于后续render函数的执行。
+
+3. 调用render，渲染子组件，渲染组件DOM
+
+   * 从组件实例对象解构出proxy代理对象用于**改变render函数的this指向**
+   * 调用**render.call(proxy,proxy)**，获取虚拟DOM树，同时挂载到组件实例对象的subTree节点上
+   * **调用patch()，渲染虚拟DOM树**
+   * 等到虚拟DOM树的节点都渲染完毕，**根据虚拟DOM树的el节点为组件虚拟节点挂载el节点**。（只有DOM渲染完毕了才能获取到el节点）
+   * 标识isMounted节点为true，说明组件已经初始化完毕。（等到下次组件更新时，就不必重复初始化逻辑，运行更新逻辑即可）
+
+   **注意：render的执行会被一个effect()函数包裹，而这个effect()函数会被挂载到组件实例对象的update节点上。用于更新**
+
+* **组件更新**
+
+1. 检测组件是否需要更新
+   * 即检查绑定到组件的props是否发生改变，改变场景：props少了，props数量不变值变了，props多了。
+
+2. 需要更新，则将新的组件虚拟节点挂载到组件实例对象的next的节点上，再调用其组件实例对象上的update函数，更新组件。在更新过程中，判断组件实例对象上是否存在next节点，若存在，则说明是组件更新。
+   * 手动地设置新组件虚拟节点的el节点，从组件实例对象的vnode节点解构出el节点赋值继承。(***组件最新的虚拟节点并没有初始化 需要手动给新的节点赋值el属性***)
+   * 在执行render之前，**由于新的虚拟节点 并没有经过组件初始化的过程需要手动绑定，即更新 新组件虚拟节点 所属的组件实例对象节点配置**，主要是vnode，和props节点的更新。
+   * 执行render，获取组件DOM树，调用patch渲染。
 
 ## 虚拟DOM渲染/更新
 
@@ -179,11 +288,11 @@ TODO
 
 2. 设置props
 
-提取虚拟节点（vnode）的props节点（objec类型），遍历props节点，调用patchProp()，利用***el*.setAttribute(key,value)**设置属性,同时判断props的key是否带有on字段，若存在则处理该字段提取出事件名称，利用***el*.addEventListener(eventName,value)**绑定事件。
+**提取虚拟节点（vnode）的props节点（objec类型），遍历props节点**，调用patchProp()，利用***el*.setAttribute(key,value)**设置属性,同时判断props的key是否带有on字段，若存在则处理该字段提取出事件名称，利用***el*.addEventListener(eventName,value)**绑定事件。
 
 3. 渲染子节点内容
 
-提取虚拟节点（vnode）的children节点，判断虚拟节点的类型（在创建虚拟节点时，确认类型，此处类型判断 该虚拟节点的children节点是纯文本还是数组类型）。
+**提取虚拟节点（vnode）的children节点，判断虚拟节点的类型**（在创建虚拟节点时，确认类型，此处类型判断 该虚拟节点的children节点是纯文本还是数组类型）。
 
 若为文本类型，则调用**document.createTextNode(children)**,生成文本children内容并调用**el.append()**插入到根元素（el）中。
 
@@ -195,7 +304,7 @@ TODO
 
 * **元素更新**
 
-数据发生改变 -> 视图更新（DOM更新）——利用effect包裹render函数的执行,创建依赖。当数据更新时，则触发依赖执行。
+**数据发生改变 -> 视图更新（DOM更新）——利用effect包裹render函数的执行,创建依赖。当数据更新时，则触发依赖执行。**
 
 1. 依赖执行时，触发patch的执行,此时会同时传入新、旧虚拟节点，用于比对更新。在进行props和children节点更新前，需要挂载旧虚拟节点的el属性到新虚拟节点上（新虚拟节点不经历根元素创建流程，需要继承获取）
 2. props的更新

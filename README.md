@@ -294,13 +294,13 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 **提取虚拟节点（vnode）的children节点，判断虚拟节点的类型**（在创建虚拟节点时，确认类型，此处类型判断 该虚拟节点的children节点是纯文本还是数组类型）。
 
-若为文本类型，则调用**document.createTextNode(children)**,生成文本children内容并调用**el.append()**插入到根元素（el）中。
+若为文本类型，则调用**document.createTextNode(children)**,生成文本children内容并调用 **el.append()** 插入到根元素（el）中。
 
 若为数组类型，则遍历数组（存储着虚拟节点），调用**patch()**渲染。
 
 4. 将根元素插入到根容器中
 
-调用**container.insertBefore(el, anchor || null)**将完整元素内容插入到根容器中。（anchor参数作为锚点，其设置在后续元素更新时有用处）
+调用 **container.insertBefore(el, anchor || null)** 将完整元素内容插入到根容器中。（anchor参数作为锚点，其设置在后续元素更新时有用处）
 
 * **元素更新**
 
@@ -327,11 +327,11 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 * textChildren —— textChildren
 
-判断内容是否发生改变，若发生改变调用**hostSetTextElement(el, text)**更新内容，反之不做任何处理。
+判断内容是否发生改变，若发生改变调用 **hostSetTextElement(el, text)** 更新内容，反之不做任何处理。
 
 * textChildren —— arrayChildren
 
-调用**hostSetTextElement(el, text)**清空旧children内容，调用**mountChildren()**渲染新children内容，即遍历出childrenItem调用patch()渲染。
+调用 **hostSetTextElement(el, text)** 清空旧children内容，调用 **mountChildren()** 渲染新children内容，即遍历出childrenItem调用patch()渲染。
 
 * arrayChildren —— arrayChildren
 

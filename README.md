@@ -335,5 +335,170 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 * arrayChildren —— arrayChildren
 
-TODO
+**声明左指针 i ，声明两个右指针分别指向新旧children的末尾元素位置：旧 - e1，新 - e2** （ **_以下diff的相关实现基于key的绑定。_**）
+```ts
+	// render.ts patchKeyedChildren()
+ 	let i = 0; // 左指针
+        let e1 = c1.length - 1; // 指向旧children（数组）的最后一个元素位置
+        let e2 = c2.length - 1; // 指向新children（数组）的最后一个元素位置
+```
 
+1. 左侧对比
+```ts
+// render.ts patchKeyedChildren()
+function isSameVNodeType(n1, n2) {
+    return n1.type === n2.type && n1.key === n2.key
+}
+while (i <= e1 && i <= e2) { // 左侧对比
+	const n1 = c1[i] // 从数组左侧开始 获取旧children（数组）中的个体虚拟节点
+	const n2 = c2[i] // 从数组左侧开始 获取新children（数组）中的个体虚拟节点
+	if (isSameVNodeType(n1, n2)) { // 判断新旧虚拟节点是否为相同类型
+		patch(n1, n2, container, parentComponent, anchor) // 比对更新其节点的属性和children
+	} else {
+		break;
+	}
+	i++;
+}
+``` 
+利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**。在每次循环中将左指针右移。**当对比的新旧节点类型不同时，跳出循环，说明左侧对比完成**，此时的指针情况有：i等于e1且小于e2（**对比旧children，新children中右侧出现节点置换，节点增添**），i大于e1且小于e2（**对比旧children，新children中右侧出现节点增添**），i等于e1且大于e2（**对比旧children，新children中右侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children中右侧出现节点置换**）,故左侧对比的判断条件为 左指针必须同时满足 <= e1/e2的条件。
+
+2. 右侧对比
+```ts
+// render.ts patchKeyedChildren()
+function isSameVNodeType(n1, n2) {
+    return n1.type === n2.type && n1.key === n2.key
+}
+while (i <= e1 && i <= e2) { // 右侧对比
+	const n1 = c1[e1] // 从数组右侧开始 获取旧children（数组）中的个体虚拟节点
+	const n2 = c2[e2] // 从数组右侧开始 获取新children（数组）中的个体虚拟节点
+	if (isSameVNodeType(n1, n2)) { // 判断新旧虚拟节点是否为相同类型
+		patch(n1, n2, container, parentComponent, anchor) // 比对更新其节点的属性和children
+	} else {
+		break;
+	}
+	e1--;
+	e2--;
+} ab   deab 0 -1 1   abc  bc  0 0 -1   dab  cab 0 0 0  ab dcb 0 0 1
+```
+利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**，在每次循环中将两个右指针左移。**当对比的新旧节点类型不同时，跳出循环，说明右侧对比完成**。此时的指针情况有：i等于0且e2大于e1（**对比旧children，新children中左侧出现节点增添**），i等于0且e1大于e2（**对比旧children，新children中左侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children左侧出现节点置换**），i等于e1且小于e2（**对比旧children，新children中的左侧出现节点置换，节点增添**），故右侧对比的判断条件同样为 左指针必须同时满足 <= e1/e2的条件。
+
+3. 中间对比
+// TODO 逻辑分析
+```ts
+	// render.ts patchKeyedChildren()
+	if (i > e1) { // 新children中节点比旧children节点多 创建
+            if (i <= e2) {
+                const nextPos = e2 + 1
+                const anchor = nextPos < c2.length ? c2[nextPos].el : null
+                while (i <= e2) {
+                    patch(null, c2[i], container, parentComponent, anchor)
+                    i++
+                }
+            }
+        } else if (i <= e1 && i > e2) { // 新children中节点比旧children节点少 销毁
+            while (i <= e1) {
+                hostRemove(c1[i].el)
+                i++
+            }
+        } else { // 中间区域对比
+            // 获取i索引
+            let s1 = i
+            let s2 = i
+            const keyToNewIndexMap = new Map()
+            let moved = false
+            let maxNewIndexSoFar = 0
+            for (let i = s2; i <= e2; i++) { // 基于新节点来创建 节点key属性 映射以进行对比
+                const nextChildren = c2[i]
+                keyToNewIndexMap.set(nextChildren.key, i)
+            }
+            const toBePatched = e2 - s2 + 1 // 需要处理新节点的数量
+            let patched = 0
+            // 初始化 根据新的index映射出旧的index 
+            // 创建数组时给定数组长度 （性能优化点）
+            // 给数组填充0 在后续处理中 如果查找发现对应值为0时，说明新值在老的里面不存在 需要创建
+            const newIndexToOldIndexMap = new Array(toBePatched).fill(0)
+            for (let i = s1; i <= e1; i++) {
+                // 遍历旧节点 
+                // 1.需要找出旧节点存在 新节点不存在的 -> 需要将其删除
+                // 2. 新老节点都存在 递归调用patch
+                const prevChilren = c1[i] // 获取旧节点个体
+                //如果旧的节点大于新节点的数量的话，那么在处理旧节点时可以直接删除（性能优化点）
+                if (patched >= toBePatched) {
+                    hostRemove(prevChilren.el)
+                    continue
+                }
+                let newIndex // 存储 根据旧节点在新节点keyMap里查找的结果
+                if (prevChilren.key) {
+                    // 如果旧节点存在key 则可以通过 由新节点生成的key映射查找当前处理的旧节点在新节点中的索引
+                    // 时间复杂度为O(1)
+                    newIndex = keyToNewIndexMap.get(prevChilren.key)
+                } else {
+                    //如果没有key的话 只能通过遍历所有新节点的方式来确定当前节点是否存在
+                    // 实践复杂度为O(n)
+                    for (let j = s2; j <= e2; j++) {
+                        if (isSameVNodeType(prevChilren, c2[j])) {
+                            newIndex = j
+                            break;
+                        }
+                    }
+                }
+                if (!newIndex) {
+                    // 如果没查找到 说明 新节点中不包含该节点 删除节点即可
+                    hostRemove(prevChilren.el)
+                } else {  // 新老接节点都存在 重新进行对比
+                    // 根据新节点的索引和老节点的索引建立映射关系
+                    //  +1的原因是因为 i 可能为0， 如果i为0的话说明新节点在老节点中不存在
+                    newIndexToOldIndexMap[newIndex - s2] = i + 1
+                    // 确定中间的节点是否需要移动
+                    // 如果新的newIndex一直是升序的话 则说明为发生节点移动的情况
+                    // 根据记录最后一个节点在新的里面的索引 来观察是否升序
+                    // 不是升序的话 可以确定该节点移动过了
+                    if (newIndex >= maxNewIndexSoFar) {
+                        maxNewIndexSoFar = newIndex
+                    } else {
+                        moved = true
+                    }
+                    patch(prevChilren, c2[newIndex], container, parentComponent) // 处理节点本身的props children更新
+                    patched++
+                }
+            }
+            // 利用最长递增子序列来优化移动逻辑
+            // 如果元素是升序的话 那么这一批升序的元素不需要移动
+            // 通过最长递增子序列来获取到升序的列表
+            // 在移动的时候再去对比这个列表 如果对比的上的话，则说明当前元素不需要移动
+            // 通过moved来进行优化，如果没有移动过的话，那么就不需要执行获取最长递增子序列的算法
+            // getSequence 返回的是 newIndexToOldIndexMap 的索引值
+            // 所以后面我们可以直接遍历索引值来进行处理 直接使用toBePatched即可
+            const increasingNewIndexSequence = moved ? getSequence(newIndexToOldIndexMap) : []
+            let j = increasingNewIndexSequence.length - 1
+
+            // 遍历新节点
+            // 1.需要找出旧节点不存在 而新节点存在的 -> 需要创建新节点
+            // 2.最后需要移动一下位置 比如 【c，d，e】 => 【e，c，d】
+
+            // 使用倒循环 是因为在移动节点位置时， 需要保证锚点anchor 必须是处理完的，确定的节点
+            for (let i = toBePatched - 1; i >= 0; i--) {
+                // 确定当前要处理的节点索引
+                const nextIndex = s2 + i
+                const nextChild = c2[nextIndex]
+                // 锚点节点的索引 为当前正处理的节点的索引+1 即后面一个紧跟着的节点
+                const anchor = nextIndex + 1 < c2.length ? c2[nextIndex + 1].el : null
+                if (newIndexToOldIndexMap[i] === 0) {
+                    // 说明新节点在旧节点中不存在 需要创建
+                    patch(null, nextChild, container, parentComponent, anchor)
+                } else if (moved) {
+                    // 说明需要移动节点
+                    // 1. j为-1 说明剩下的都是需要移动的
+                    // 2. 最长递增子序列里面的值和当前的值匹配不上的话 说明当前元素需要移动
+                    if (j < 0 || increasingNewIndexSequence[j] !== i) {
+                        // 移动节点
+                        hostInsert(nextChild.el, container, anchor)
+                    } else {
+                        // 值匹配命中后 移动指针
+                        j--;
+                    }
+                }
+            }
+        }
+
+```

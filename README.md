@@ -383,6 +383,7 @@ while (i <= e1 && i <= e2) { // 右侧对比
 利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**，在每次循环中将两个右指针左移。**当对比的新旧节点类型不同时，跳出循环，说明右侧对比完成**。此时的指针情况有：i等于0且e2大于e1（**对比旧children，新children中左侧出现节点增添**），i等于0且e1大于e2（**对比旧children，新children中左侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children左侧出现节点置换**），i等于e1且小于e2（**对比旧children，新children中的左侧出现节点置换，节点增添**），故右侧对比的判断条件同样为 左指针必须同时满足 <= e1/e2的条件。
 
 3. 中间对比
+// TODO 逻辑分析
 ```ts
 	// render.ts patchKeyedChildren()
 	if (i > e1) { // 新children中节点比旧children节点多 创建
@@ -501,4 +502,3 @@ while (i <= e1 && i <= e2) { // 右侧对比
         }
 
 ```
-// TODO 逻辑分析

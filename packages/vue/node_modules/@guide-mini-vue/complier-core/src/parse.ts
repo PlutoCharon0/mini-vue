@@ -147,7 +147,7 @@ function parseTag(context, type) {
     tag
   }
 }
-// 检查该标签是否有
+// 检查该标签是否有结束标签。
 function startsWithEndTagOpen(source, tag) {
 
   return startsWith(source, '</') && source.slice(2, 2 + tag.length) === tag
@@ -155,9 +155,9 @@ function startsWithEndTagOpen(source, tag) {
 // 用于处理文字类型子节点
 function parseText(context) {
   // 声明文字类型内容的终止标志
-  const endTokens = ['<', '{{']
+  const endTokens = ['<', '{{'] 
   // 存储内容的长度
-  let endIndex = context.source.length
+  let endIndex = context.source.length 
 
   for (let i = 0; i < endTokens.length; i++) {
     const index = context.source.indexOf(endTokens[i])

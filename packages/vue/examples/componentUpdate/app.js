@@ -33,13 +33,13 @@ export default {
             for (let i = 0; i <= 100; i++) {
                 count.value = i;
             }
-            // debugger;
+            debugger;
             console.log(instance.vnode.el.childNodes);
-            /*  await nextTick()
-            console.log(instance.vnode.el.childNodes); */
-            nextTick(() => {
+             await nextTick()
+            console.log(instance.vnode.el.childNodes);
+            /* nextTick(() => {
                 console.log(instance.vnode.el.childNodes);
-            });
+            }); */
         };
         return {
             msg,

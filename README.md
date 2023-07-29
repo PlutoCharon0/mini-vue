@@ -540,3 +540,23 @@ while (i <= e1 && i <= e2) { // 右侧对比
 
 ```
 
+## 组件更新/元素更新的异步实现
+
+将effect函数的执行放入一个微任务中执行。即用effect函数包裹更新逻辑时，配置scheduler，调用queueJobs()
+
+queueJobs执行过程：
+
+执行前声明变量 **queue = [ ]**作为任务队列，变量**isFlushPending** 作为是否正在刷新队列的标识，默认值为false
+
+1. 判断当前任务是否存在与任务队列中，不存在则添加更新任务到队列中
+2. 刷新任务队列，判断任务队列是否处于刷新状态，是则不作任何处理，反之则修改标识为true，标识正在执行任务队列的刷新。
+3. 执行任务队列中的任务，利用promise.resolve().then()包裹任务队列中任务的遍历执行。执行完毕后重置标识为false
+
+## nextTick的实现
+
+```ts
+function nextTick(fn?) {
+  return fn ? p.then(fn) : p
+}
+```
+

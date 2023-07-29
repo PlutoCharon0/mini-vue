@@ -200,7 +200,7 @@ export function createRender(options) {
                 // 1.需要找出旧节点存在 新节点不存在的 -> 需要将其删除
                 // 2. 新老节点都存在 递归调用patch
                 const prevChilren = c1[i] // 获取旧节点个体
-                //如果旧的节点大于新节点的数量的话，那么在处理旧节点时可以直接删除（性能优化点）
+                //如果已处理的节点个数大于待处理的新节点个数，说明该节点在新children中不存在，直接删除即可（性能优化点）
                 if (patched >= toBePatched) {
                     hostRemove(prevChilren.el)
                     continue
@@ -228,7 +228,7 @@ export function createRender(options) {
                     //  +1的原因是因为 i 可能为0， 如果i为0的话说明新节点在老节点中不存在
                     newIndexToOldIndexMap[newIndex - s2] = i + 1
                     // 确定中间的节点是否需要移动
-                    // 如果新的newIndex一直是升序的话 则说明为发生节点移动的情况
+                    // 如果新的newIndex一直是升序的话 则说明没有发生节点移动的情况
                     // 根据记录最后一个节点在新的里面的索引 来观察是否升序
                     // 不是升序的话 可以确定该节点移动过了
                     if (newIndex >= maxNewIndexSoFar) {

@@ -1,4 +1,5 @@
 [学习参考](https://github.com/cuixiaorui/mini-vue/tree/master)
+
 # 功能实现
 ## reactivity
 - [x] reactive 的实现
@@ -264,7 +265,7 @@ function createComponentInstance(vnode, parent) { // component.ts
    * 等到虚拟DOM树的节点都渲染完毕，**根据虚拟DOM树的el节点为组件虚拟节点挂载el节点**。（只有DOM渲染完毕了才能获取到el节点）
    * 标识isMounted节点为true，说明组件已经初始化完毕。（等到下次组件更新时，就不必重复初始化逻辑，运行更新逻辑即可）
 
-   **注意：render的执行会被一个effect()函数包裹，而这个effect()函数会被挂载到组件实例对象的update节点上。用于更新**
+   **注意：render的执行会被一个effect()函数包裹，而这个effect()函数会被挂载到组件实例对象的update节点上。用于更新。**
 
 * **组件更新**
 
@@ -272,7 +273,7 @@ function createComponentInstance(vnode, parent) { // component.ts
    * 即检查绑定到组件的props是否发生改变，改变场景：props少了，props数量不变值变了，props多了。
 
 2. 需要更新，则将新的组件虚拟节点挂载到组件实例对象的next的节点上，再调用其组件实例对象上的update函数，更新组件。在更新过程中，判断组件实例对象上是否存在next节点，若存在，则说明是组件更新。
-   * 手动地设置新组件虚拟节点的el节点，从组件实例对象的vnode节点解构出el节点赋值继承。(***组件最新的虚拟节点并没有初始化 需要手动给新的节点赋值el属性***)
+   * 手动地设置新组件虚拟节点的el节点，从组件实例对象的vnode节点解构出el节点赋值继承。(***组件最新的虚拟节点并没有初始化 需要手动给新的节点赋值el属性***)。
    * 在执行render之前，**由于新的虚拟节点 并没有经过组件初始化的过程需要手动绑定，即更新 新组件虚拟节点 所属的组件实例对象节点配置**，主要是vnode，和props节点的更新。
    * 执行render，获取组件DOM树，调用patch渲染。
 
@@ -300,20 +301,20 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 4. 将根元素插入到根容器中
 
-调用 **container.insertBefore(el, anchor || null)** 将完整元素内容插入到根容器中。（anchor参数作为锚点，其设置在后续元素更新时有用处）
+调用 **container.insertBefore(el, anchor || null)** 将完整元素内容插入到根容器中。（anchor参数作为锚点，其设置在后续元素更新时有用处）。
 
 * **元素更新**
 
 **数据发生改变 -> 视图更新（DOM更新）——利用effect包裹render函数的执行,创建依赖。当数据更新时，则触发依赖执行。**
 
-1. 依赖执行时，触发patch的执行,此时会同时传入新、旧虚拟节点，用于比对更新。在进行props和children节点更新前，需要挂载旧虚拟节点的el属性到新虚拟节点上（新虚拟节点不经历根元素创建流程，需要继承获取）
+1. 依赖执行时，触发patch的执行,此时会同时传入新、旧虚拟节点，用于比对更新。在进行props和children节点更新前，需要挂载旧虚拟节点的el属性到新虚拟节点上（新虚拟节点不经历根元素创建流程，需要继承获取）。
 2. props的更新
 
 分别从新、旧节点中获取相应的新、旧props。调用**patchProps(el,oldProp,newProp)**,更新props。
 
 **更新过程**：**遍历新props**，查找其中的key是否存在于旧props中，如果key存在于旧props中，则开始比对它们的值是否相同，不同则调用patchProp()更新值。若key不存在，则说明出现了新属性，则调用patchProp()补充新的key-value。**遍历旧props**，查看其中的key是否存在于新props中，如果不存在，则说明相应的key-value需要删除。调用patchProp()进行删除。
 
-更新情景：**props的key不发生改变，值发生改变**、**在旧props的基础上，出现新的key-value**、**新props中丢失了一些key-value**
+更新情景：**props的key不发生改变，值发生改变**、**在旧props的基础上，出现新的key-value**、**新props中丢失了一些key-value。**
 
 3. children的更新
 
@@ -323,7 +324,7 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 * arrayChildren —— textChildren
 
-调用**unmountChildren()**清空旧children内容：遍历children节点（数组），获取对应childrenItem的el节点，调用**hostRemove()**,处理清空逻辑（核心处理逻辑： **parentNode.removeChild(children)**）。旧children清空完毕，调用**hostSetTextElement(el, text)**创建文本节点，并插入到根容器中。（核心处理逻辑：***el*.textContent = *text***）
+调用**unmountChildren()**清空旧children内容：遍历children节点（数组），获取对应childrenItem的el节点，调用**hostRemove()**,处理清空逻辑（核心处理逻辑： **parentNode.removeChild(children)**）。旧children清空完毕，调用**hostSetTextElement(el, text)**创建文本节点，并插入到根容器中。（核心处理逻辑：***el*.textContent = *text***）。
 
 * textChildren —— textChildren
 
@@ -335,7 +336,15 @@ function createComponentInstance(vnode, parent) { // component.ts
 
 * arrayChildren —— arrayChildren
 
-**声明左指针 i ，声明两个右指针分别指向新旧children的末尾元素位置：旧 - e1，新 - e2** （ **_以下diff的相关实现基于key的绑定。_**）
+| 1. 预处理前置节点                      |
+| -------------------------------------- |
+| **2. 预处理后置节点**                  |
+| **3. 处理仅有新增节点情况**            |
+| **4. 处理仅有删除节点情况**            |
+| **5.  处理其他情况（新增/删除/移动）** |
+
+**声明左指针 i ，声明两个右指针分别指向新旧children的末尾元素位置：旧 - e1，新 - e2** 
+
 ```ts
 	// render.ts patchKeyedChildren()
  	let i = 0; // 左指针
@@ -359,8 +368,8 @@ while (i <= e1 && i <= e2) { // 左侧对比
 	}
 	i++;
 }
-``` 
-利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**。在每次循环中将左指针右移。**当对比的新旧节点类型不同时，跳出循环，说明左侧对比完成**，此时的指针情况有：i等于e1且小于e2（**对比旧children，新children中右侧出现节点置换，节点增添**），i大于e1且小于e2（**对比旧children，新children中右侧出现节点增添**），i等于e1且大于e2（**对比旧children，新children中右侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children中右侧出现节点置换**）,故左侧对比的判断条件为 左指针必须同时满足 <= e1/e2的条件。
+```
+利用while循环依次取出新旧children中的节点个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**。在每次循环中将左指针右移。**当对比的新旧节点类型不同时，跳出循环，说明左侧对比完成**，此时的指针情况有：i等于e1且小于e2（**对比旧children，新children中右侧出现节点置换，节点增添**），i大于e1且小于e2（**对比旧children，新children中右侧出现节点增添**），i等于e1且大于e2（**对比旧children，新children中右侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children中右侧出现节点置换**）,故左侧对比的判断条件为 左指针必须同时满足 <= e1/e2的条件。
 
 2. 右侧对比
 ```ts
@@ -380,10 +389,38 @@ while (i <= e1 && i <= e2) { // 右侧对比
 	e2--;
 } ab   deab 0 -1 1   abc  bc  0 0 -1   dab  cab 0 0 0  ab dcb 0 0 1
 ```
-利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**，在每次循环中将两个右指针左移。**当对比的新旧节点类型不同时，跳出循环，说明右侧对比完成**。此时的指针情况有：i等于0且e2大于e1（**对比旧children，新children中左侧出现节点增添**），i等于0且e1大于e2（**对比旧children，新children中左侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children左侧出现节点置换**），i等于e1且小于e2（**对比旧children，新children中的左侧出现节点置换，节点增添**），故右侧对比的判断条件同样为 左指针必须同时满足 <= e1/e2的条件。
+利用while循环依次取出新旧children中的个体项，对比虚拟节点的类型，**若节点类型相同，则说明是该节点的属性或子节点内容需要更新，调用patch()进行更新**，在每次循环中将两个右指针左移。**当对比的新旧节点类型不同时，跳出循环，说明右侧对比完成**。此时的指针情况有：i等于0大于e1且e2大于e1（**对比旧children，新children中左侧出现节点增添**），i等于0且e1大于e2（**对比旧children，新children中左侧出现节点缺失**），i等于e1等于e2（**对比旧children，新children左侧出现节点置换**），i等于e1且小于e2（**对比旧children，新children中的左侧出现节点置换，节点增添**），故右侧对比的判断条件同样为 左指针必须同时满足 <= e1/e2的条件。
 
 3. 中间对比
-// TODO 逻辑分析
+
+在正式进行中间对比之前，先处理左侧，右侧对比的结果。
+
+* 当 **i > e1 && i <= e2** 说明存在新节点需要创建，获取锚点标识插入位置。如果nextPos的值 大于新children的length说明当前新节点需要插入到末尾位置。仅当**i <= e2** 时，进行创建更新。（左指针无论如何都不会大于新children的右指针）。创建新节点的同时，推进左指针右移。标识当前节点处理完毕。（**仅新增**）
+* 当 **i <= e1 && i > e2** 说明存在旧节点需要销毁， 仅当 **i <= e1 时**，进行销毁（左指针无论如何都不会大于旧children的右指针）。销毁节点的同时，推进左指针右移，标识当前节点处理完毕。（**仅删除**）
+
+**进入中间对比**：
+
+（以下children所描述的是**中间区块的待对比部分**）
+
+1. 定义s1，s2变量分别记录新旧children待处理部分的起始位置。
+2. 构造新children的位置映射表 **keyToNewIndexMap = new Map()** ，**用于映射出新节点与位置的索引关系。**
+3. **填充新children的位置映射表，遍历新children，以节点个体项的key属性作为 key值，s2为起始value值。循环填充。**
+4. 定义当前最远位置 变量  **maxNewIndexSoFar = 0** ，用于记录新children中当前的最远位置，目的是**用于判断新旧children在遍历过程中是否同时呈现递增趋势**，如果不是则证明了节点发生了移动，需要将移动标识设置为true，以便后续进行移动处理。
+5. 构建新旧children的位置映射表 **newIndexToOldIndexMap—— array.fill(0)** ,初始值都为0，用于记录新旧children位置的映射关系.经过 **处理** 后，若对应值还是0，说明该节点为新节点，需要创建。
+6. 填充新旧children位置映射表，从遍历旧children开始。
+   * 获取旧children中的节点个体项，声明变量 **newIndex 用于存储 根据旧节点在新节点keyMap里查找的结果(新节点个体项索引值)**
+   * 判断节点个体项是否拥有key属性，如果存在，则**根据key属性从新children的位置映射表（keyToNewIndexMap ）中查找当前节点是否存在**。若不存在key属性，则通过遍历新children的方式查找存在与否。将结果存储在 **newIndex** 中
+   * 如果**没有查找到**则说明 新children中不存在该节点个体项，需要删除
+   * **查找到**则说明该节点个体想同时存在于新旧children中，首先填充新旧children的位置映射表 **newIndexToOldIndexMap**，**待填充值的索引为当前节点在映射表中的位置（newIndex - s2）**, 值为**当前左指针 +1** （左指针可能为0，说明新节点在旧children中不存在，为了标识处理，故进行 +1处理）。
+   * 判断**newIndex** 是否 >= **maxNewIndexSoFar**，若大于则将当前最远位置设置为**newIndex**的值，反之则说明当前节点个体项发生了移动，设置移动标识为true。以便后续进行移动处理。（**根据判断新节点个体项的索引是否呈递增趋势来判断节点是否发生移动**）
+   * 调用patch()执行对应更新
+7. 处理新旧children位置映射表
+   * 从该映射表中寻找一个**最长递增子序列，目的是让节点能够以做到最小限度的移动操作**，同时定义**变量j指向该最长递增子序列的末尾元素**。
+   * 利用倒序循环遍历新children,  **i为循环变量**（**在移动节点位置时， 需要保证锚点anchor 必须是处理完的，确定的节点，故使用倒序循环**）
+   * 确定当前待处理的节点在新children中的索引（**s2 + i**）, 提取节点，同时获取锚点
+   * 判断 以**当前循环变量i的值作为索引**的**新旧children位置映射表中的值是否为0**，如果是则说明当前节点在新children中不存在，需要创建。调用patch()进行创建，挂载。
+   * 判断 移动标识变量是否为true，若为true则说明需要进行移动操作。二次判断**变量j是否小于0** || **当前循环变量i是否与最长递增子序列中的值不匹配**，满足其中一个 则说明当前节点需要移动。调用hostInsert()传入锚点及相关参数。进行移动操作。如果值匹配成功，说明当前变量不是待移动节点，则对**变量j进行自减操作 **
+
 ```ts
 	// render.ts patchKeyedChildren()
 	if (i > e1) { // 新children中节点比旧children节点多 创建
@@ -404,7 +441,7 @@ while (i <= e1 && i <= e2) { // 右侧对比
             // 获取i索引
             let s1 = i
             let s2 = i
-            const keyToNewIndexMap = new Map()
+            const keyToNewIndexMap = new Map() 
             let moved = false
             let maxNewIndexSoFar = 0
             for (let i = s2; i <= e2; i++) { // 基于新节点来创建 节点key属性 映射以进行对比
@@ -502,3 +539,4 @@ while (i <= e1 && i <= e2) { // 右侧对比
         }
 
 ```
+

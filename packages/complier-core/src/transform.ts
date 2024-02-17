@@ -28,7 +28,7 @@ export function transform(root, options = {}) {
 }
 
 
-// 深度有优先搜索 遍历ast树
+// 深度优先搜索 遍历ast树
 function traverseAstTree(node, context) {
 
   const { transformFns } = context

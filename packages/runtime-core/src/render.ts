@@ -41,7 +41,7 @@ export function createRender(options) {
         }
 
     }
-
+    
     function processFragment(n1, n2, container, parentComponent) {
         if (!n1) {
             mountChildren(n2.children, container, parentComponent)

@@ -1,4 +1,5 @@
 import { extend } from "@guide-mini-vue/shared";
+import { ITERATE_KEY } from "./baseHandlers";
 
 let activeEffect; // 用于存储当前激活的副作用函数
 
@@ -93,6 +94,7 @@ const bucket = new WeakMap(); // 存储所有响应式对象的容器
  * @param key 对象属性
 */
 export function track(target, key) {
+    debugger
     // 如果访问的对象属性并没有对应依赖引用 就不执行收集操作 直接返回
     if (!isTracking()) return
 
@@ -127,7 +129,8 @@ export function trackEffect(deps) {
  * @param target 对象 
  * @param key 对象属性
 */
-export function trigger(target, key) {
+export function trigger(target, key, type) {
+    debugger
     // 在容器中查找其对应的依赖映射
     const depsMap = bucket.get(target)
 
@@ -135,7 +138,7 @@ export function trigger(target, key) {
 
     const deps = depsMap.get(key)
 
-    triggerEffect(createDepsToRun(deps))
+    triggerEffect(createDepsToRun(deps, type, depsMap))
 }
 /**
  * 执行依赖 
@@ -153,14 +156,23 @@ export function triggerEffect(deps) {
 /**
  * 创建用于执行依赖的集合 用于处理栈溢出问题（get，set的冲突触发）
  */
-function createDepsToRun(deps) {
+function createDepsToRun(deps, type, depsMap) {
     const depsToRun = new Set()
-    
-    deps.forEach(dep => {
+
+    deps && deps.forEach(dep => {
         if (dep !== activeEffect) {
             depsToRun.add(dep)
         }
     })
+
+    if (type === 'ADD' || type === 'DELETE') {
+        const iterateEffects = depsMap.get(ITERATE_KEY)
+        iterateEffects && iterateEffects.forEach(effectsFn => {
+            if (effectsFn !== activeEffect) {
+                depsToRun.add(effectsFn)
+            }
+        })
+    }
 
     return depsToRun
 }

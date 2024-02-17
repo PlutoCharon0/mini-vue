@@ -555,6 +555,7 @@ queueJobs执行过程：
 ## nextTick的实现
 
 ```ts
+const p = Promise.resolve()
 function nextTick(fn?) {
   return fn ? p.then(fn) : p
 }
